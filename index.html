@@ -1,0 +1,2131 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SUPER SHOOTER</title>
+
+<style>
+*{
+    box-sizing:border-box;
+    user-select:none;
+}
+
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#05070a;
+    font-family:Arial,sans-serif;
+    color:white;
+}
+
+canvas{
+    display:block;
+    width:100vw;
+    height:100vh;
+    background:#111;
+    cursor:crosshair;
+}
+
+#menu{
+    position:fixed;
+    inset:0;
+    z-index:10;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    background:
+        radial-gradient(circle at center,#182334 0%,#070a0f 65%,#020304 100%);
+}
+
+#menu h1{
+    margin:0 0 8px;
+    font-size:58px;
+    letter-spacing:8px;
+    text-shadow:0 0 20px #00d9ff;
+}
+
+#menu p{
+    margin:0 0 25px;
+    color:#9da9b5;
+}
+
+.modes{
+    display:grid;
+    grid-template-columns:repeat(4,180px);
+    gap:10px;
+}
+
+.mode{
+    padding:14px;
+    border:1px solid #3c566b;
+    background:#101923;
+    color:white;
+    cursor:pointer;
+    font-weight:bold;
+    transition:.15s;
+}
+
+.mode:hover{
+    background:#19364a;
+    border-color:#00d9ff;
+    transform:scale(1.03);
+}
+
+#hud{
+    position:fixed;
+    z-index:5;
+    left:20px;
+    right:20px;
+    top:15px;
+    pointer-events:none;
+    display:none;
+}
+
+.hudTop{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+}
+
+.panel{
+    background:rgba(0,0,0,.55);
+    border:1px solid rgba(255,255,255,.18);
+    padding:9px 12px;
+    backdrop-filter:blur(4px);
+}
+
+#hpBar,#staminaBar{
+    width:220px;
+    height:14px;
+    background:#222;
+    margin-top:5px;
+}
+
+#hpFill{
+    width:100%;
+    height:100%;
+    background:#39e66d;
+}
+
+#staminaFill{
+    width:100%;
+    height:100%;
+    background:#25aaff;
+}
+
+#crosshair{
+    position:fixed;
+    z-index:6;
+    left:50%;
+    top:50%;
+    width:18px;
+    height:18px;
+    transform:translate(-50%,-50%);
+    pointer-events:none;
+    display:none;
+}
+
+#crosshair:before,
+#crosshair:after{
+    content:"";
+    position:absolute;
+    background:white;
+}
+
+#crosshair:before{
+    width:18px;
+    height:2px;
+    top:8px;
+    left:0;
+}
+
+#crosshair:after{
+    width:2px;
+    height:18px;
+    left:8px;
+    top:0;
+}
+
+#message{
+    position:fixed;
+    z-index:8;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%);
+    display:none;
+    text-align:center;
+    background:rgba(0,0,0,.8);
+    border:1px solid #fff;
+    padding:30px 50px;
+}
+
+#message h2{
+    font-size:38px;
+    margin:0 0 15px;
+}
+
+#message button{
+    padding:10px 20px;
+    border:0;
+    cursor:pointer;
+    font-weight:bold;
+}
+
+@media(max-width:900px){
+    .modes{
+        grid-template-columns:repeat(2,160px);
+    }
+
+    #menu h1{
+        font-size:40px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="menu">
+    <h1>SUPER SHOOTER</h1>
+    <p>Выбери режим</p>
+
+    <div class="modes">
+        <button class="mode" onclick="startGame('campaign')">CAMPAIGN</button>
+        <button class="mode" onclick="startGame('survival')">SURVIVAL</button>
+        <button class="mode" onclick="startGame('wave')">WAVE</button>
+        <button class="mode" onclick="startGame('deathmatch')">DEATHMATCH</button>
+
+        <button class="mode" onclick="startGame('time')">TIME ATTACK</button>
+        <button class="mode" onclick="startGame('targets')">TARGET RANGE</button>
+        <button class="mode" onclick="startGame('boss')">BOSS RUSH</button>
+        <button class="mode" onclick="startGame('endless')">ENDLESS</button>
+    </div>
+</div>
+
+<div id="hud">
+    <div class="hudTop">
+
+        <div class="panel">
+            <div>HP</div>
+            <div id="hpBar">
+                <div id="hpFill"></div>
+            </div>
+
+            <div style="margin-top:7px">STAMINA</div>
+            <div id="staminaBar">
+                <div id="staminaFill"></div>
+            </div>
+        </div>
+
+        <div class="panel" style="text-align:right">
+            <div id="modeText">MODE</div>
+            <div>SCORE: <span id="score">0</span></div>
+            <div>COMBO: <span id="combo">0</span></div>
+            <div style="font-size:24px;margin-top:4px">
+                <span id="ammo">30</span> / <span id="reserve">120</span>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div id="crosshair"></div>
+
+<div id="message">
+    <h2 id="messageTitle">GAME OVER</h2>
+    <div id="messageText"></div>
+    <br>
+    <button onclick="backToMenu()">МЕНЮ</button>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   CANVAS
+========================================================= */
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d", {alpha:false});
+
+let W = 0;
+let H = 0;
+
+function resize(){
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+}
+
+window.addEventListener("resize", resize);
+resize();
+
+
+/* =========================================================
+   GAME STATE
+========================================================= */
+
+let gameState = "menu";
+let currentMode = "campaign";
+
+let score = 0;
+let combo = 0;
+let wave = 1;
+
+let gameTime = 0;
+let modeTimer = 0;
+
+let lastTime = performance.now();
+
+const keys = Object.create(null);
+
+let mouseDown = false;
+let pointerLocked = false;
+
+
+/* =========================================================
+   AUDIO
+========================================================= */
+
+let audioCtx = null;
+let musicTimer = null;
+
+function initAudio(){
+    if(!audioCtx){
+        try{
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }catch(e){
+            audioCtx = null;
+        }
+    }
+
+    if(audioCtx && audioCtx.state === "suspended"){
+        audioCtx.resume().catch(()=>{});
+    }
+}
+
+function tone(freq, duration, type="square", volume=.035){
+    if(!audioCtx) return;
+
+    try{
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = type;
+        osc.frequency.value = freq;
+
+        gain.gain.setValueAtTime(volume,audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(
+            .0001,
+            audioCtx.currentTime + duration
+        );
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }catch(e){}
+}
+
+function shootSound(){
+    tone(120,.045,"sawtooth",.06);
+    setTimeout(()=>tone(70,.035,"square",.025),8);
+}
+
+function hitSound(){
+    tone(500,.035,"square",.04);
+}
+
+function reloadSound(){
+    tone(180,.08,"triangle",.035);
+    setTimeout(()=>tone(260,.08,"triangle",.03),100);
+}
+
+function startMusic(){
+    if(musicTimer) return;
+
+    const notes = [
+        110,0,146,0,
+        164,0,146,0,
+        110,0,130,0,
+        164,0,196,0
+    ];
+
+    let i = 0;
+
+    musicTimer = setInterval(()=>{
+        if(gameState !== "playing") return;
+
+        const n = notes[i % notes.length];
+        i++;
+
+        if(n){
+            tone(n,.12,"triangle",.018);
+        }
+    },170);
+}
+
+function stopMusic(){
+    if(musicTimer){
+        clearInterval(musicTimer);
+        musicTimer = null;
+    }
+}
+
+
+/* =========================================================
+   MAPS
+========================================================= */
+
+const maps = [
+
+[
+"########################",
+"#......................#",
+"#..####.......####.....#",
+"#......................#",
+"#......###.............#",
+"#......................#",
+"#..##.........##.......#",
+"#......................#",
+"#......####............#",
+"#......................#",
+"#............###.......#",
+"#......................#",
+"#..####................#",
+"#......................#",
+"########################"
+],
+
+[
+"########################",
+"#........#.............#",
+"#........#.............#",
+"#........#.............#",
+"#......................#",
+"#######.........########",
+"#......................#",
+"#......................#",
+"#........#.............#",
+"#........#.............#",
+"#........#.............#",
+"#......................#",
+"#............####......#",
+"#......................#",
+"########################"
+],
+
+[
+"########################",
+"#....#.................#",
+"#....#.................#",
+"#....#####.............#",
+"#......................#",
+"#..................#...#",
+"#..................#...#",
+"#...######.............#",
+"#......................#",
+"#.............#####....#",
+"#......................#",
+"#......................#",
+"#....####..............#",
+"#......................#",
+"########################"
+]
+
+];
+
+let map = maps[0];
+
+const TILE = 1;
+
+
+/* =========================================================
+   PLAYER
+========================================================= */
+
+const player = {
+    x:2.5,
+    y:2.5,
+    angle:0,
+
+    radius:.22,
+
+    hp:100,
+    stamina:100,
+
+    ammo:30,
+    reserve:120,
+
+    fireCooldown:0,
+    reloadTimer:0,
+
+    damageFlash:0
+};
+
+
+/* =========================================================
+   ENEMIES
+========================================================= */
+
+let enemies = [];
+let targets = [];
+
+function clearEnemies(){
+    enemies.length = 0;
+    targets.length = 0;
+}
+
+function spawnEnemy(x,y,boss=false){
+
+    enemies.push({
+        x,
+        y,
+
+        radius:boss ? .38 : .25,
+
+        hp:boss ? 500 : 100,
+        maxHp:boss ? 500 : 100,
+
+        speed:boss ? .55 : .75,
+
+        angle:0,
+
+        fireCooldown:Math.random()*.8,
+
+        boss,
+
+        hitFlash:0
+    });
+}
+
+function randomFreePosition(){
+    for(let tries=0;tries<100;tries++){
+
+        const x = 1 + Math.random() * (map[0].length-2);
+        const y = 1 + Math.random() * (map.length-2);
+
+        if(!isWall(x,y) &&
+           Math.hypot(x-player.x,y-player.y)>5){
+
+            return {x,y};
+        }
+    }
+
+    return {x:10,y:7};
+}
+
+
+/* =========================================================
+   MAP COLLISION
+========================================================= */
+
+function isWall(x,y){
+
+    const mx = Math.floor(x);
+    const my = Math.floor(y);
+
+    if(my < 0 || my >= map.length) return true;
+    if(mx < 0 || mx >= map[my].length) return true;
+
+    return map[my][mx] === "#";
+}
+
+function canMove(x,y,r=.2){
+
+    return !isWall(x-r,y-r) &&
+           !isWall(x+r,y-r) &&
+           !isWall(x-r,y+r) &&
+           !isWall(x+r,y+r);
+}
+
+function moveEntity(obj,dx,dy,r){
+
+    const nx = obj.x + dx;
+
+    if(canMove(nx,obj.y,r)){
+        obj.x = nx;
+    }
+
+    const ny = obj.y + dy;
+
+    if(canMove(obj.x,ny,r)){
+        obj.y = ny;
+    }
+}
+
+
+/* =========================================================
+   RAYCAST
+========================================================= */
+
+const FOV = Math.PI / 3;
+
+function normalizeAngle(a){
+
+    while(a > Math.PI) a -= Math.PI*2;
+    while(a < -Math.PI) a += Math.PI*2;
+
+    return a;
+}
+
+function castRay(angle){
+
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+
+    let x = player.x;
+    let y = player.y;
+
+    const step = .035;
+
+    for(let i=0;i<900;i++){
+
+        x += dx*step;
+        y += dy*step;
+
+        if(isWall(x,y)){
+
+            const dist = Math.hypot(
+                x-player.x,
+                y-player.y
+            );
+
+            return {
+                distance:Math.max(.001,dist),
+                x,
+                y
+            };
+        }
+    }
+
+    return {
+        distance:30,
+        x:x,
+        y:y
+    };
+}
+
+
+/* =========================================================
+   LINE OF SIGHT
+========================================================= */
+
+function hasLineOfSight(x1,y1,x2,y2){
+
+    const dx = x2-x1;
+    const dy = y2-y1;
+
+    const dist = Math.hypot(dx,dy);
+
+    if(dist <= .01) return true;
+
+    const steps = Math.min(
+        80,
+        Math.ceil(dist/.12)
+    );
+
+    for(let i=1;i<steps;i++){
+
+        const t = i/steps;
+
+        const x = x1 + dx*t;
+        const y = y1 + dy*t;
+
+        if(isWall(x,y)){
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+/* =========================================================
+   START GAME
+========================================================= */
+
+const modeNames = {
+    campaign:"CAMPAIGN",
+    survival:"SURVIVAL",
+    wave:"WAVE",
+    deathmatch:"DEATHMATCH",
+    time:"TIME ATTACK",
+    targets:"TARGET RANGE",
+    boss:"BOSS RUSH",
+    endless:"ENDLESS"
+};
+
+function startGame(mode){
+
+    initAudio();
+    startMusic();
+
+    currentMode = mode;
+
+    gameState = "playing";
+
+    score = 0;
+    combo = 0;
+    wave = 1;
+    gameTime = 0;
+
+    player.x = 2.5;
+    player.y = 2.5;
+    player.angle = 0;
+
+    player.hp = 100;
+    player.stamina = 100;
+
+    player.ammo = 30;
+    player.reserve = 120;
+
+    player.fireCooldown = 0;
+    player.reloadTimer = 0;
+
+    map = maps[Math.floor(Math.random()*maps.length)];
+
+    clearEnemies();
+
+    document.getElementById("menu").style.display = "none";
+    document.getElementById("hud").style.display = "block";
+    document.getElementById("crosshair").style.display = "block";
+    document.getElementById("message").style.display = "none";
+
+    document.getElementById("modeText").textContent =
+        modeNames[mode] || mode;
+
+    setupMode(mode);
+
+    canvas.focus();
+
+    /*
+       Pointer Lock вызывается только после настоящего
+       пользовательского клика.
+    */
+    setTimeout(()=>{
+        canvas.requestPointerLock?.();
+    },50);
+}
+
+
+/* =========================================================
+   MODE SETUP
+========================================================= */
+
+function setupMode(mode){
+
+    clearEnemies();
+
+    if(mode === "campaign"){
+
+        for(let i=0;i<6;i++){
+            const p=randomFreePosition();
+            spawnEnemy(p.x,p.y);
+        }
+
+    }else if(mode === "survival"){
+
+        for(let i=0;i<8;i++){
+            const p=randomFreePosition();
+            spawnEnemy(p.x,p.y);
+        }
+
+    }else if(mode === "wave"){
+
+        spawnWave();
+
+    }else if(mode === "deathmatch"){
+
+        for(let i=0;i<10;i++){
+            const p=randomFreePosition();
+            spawnEnemy(p.x,p.y);
+        }
+
+    }else if(mode === "time"){
+
+        modeTimer=60;
+
+        for(let i=0;i<12;i++){
+            const p=randomFreePosition();
+            spawnEnemy(p.x,p.y);
+        }
+
+    }else if(mode === "targets"){
+
+        for(let i=0;i<15;i++){
+
+            const p=randomFreePosition();
+
+            targets.push({
+                x:p.x,
+                y:p.y,
+                hp:1,
+                alive:true,
+                radius:.25,
+                respawn:0
+            });
+        }
+
+    }else if(mode === "boss"){
+
+        const p=randomFreePosition();
+        spawnEnemy(p.x,p.y,true);
+
+    }else if(mode === "endless"){
+
+        for(let i=0;i<5;i++){
+
+            const p=randomFreePosition();
+            spawnEnemy(p.x,p.y);
+        }
+    }
+}
+
+function spawnWave(){
+
+    const amount = Math.min(
+        25,
+        4 + wave * 2
+    );
+
+    for(let i=0;i<amount;i++){
+
+        const p=randomFreePosition();
+
+        spawnEnemy(
+            p.x,
+            p.y,
+            wave % 10 === 0 && i === 0
+        );
+    }
+}
+
+
+/* =========================================================
+   RELOAD
+========================================================= */
+
+function reload(){
+
+    if(gameState !== "playing") return;
+    if(player.reloadTimer > 0) return;
+    if(player.ammo >= 30) return;
+    if(player.reserve <= 0) return;
+
+    player.reloadTimer = 1.3;
+
+    reloadSound();
+}
+
+function finishReload(){
+
+    const need = 30-player.ammo;
+    const take = Math.min(need,player.reserve);
+
+    player.ammo += take;
+    player.reserve -= take;
+
+    player.reloadTimer = 0;
+}
+
+
+/* =========================================================
+   SHOOTING
+========================================================= */
+
+function shoot(){
+
+    /*
+       Ключевой фикс:
+       shoot() теперь НЕ запускает никакие бесконечные
+       циклы и не перебирает бесконечные лучи.
+    */
+
+    if(gameState !== "playing") return;
+
+    if(player.reloadTimer > 0) return;
+
+    if(player.fireCooldown > 0) return;
+
+    if(player.ammo <= 0){
+
+        reload();
+        return;
+    }
+
+    player.ammo--;
+
+    /*
+       Ограничиваем скорострельность.
+       0.12 сек ≈ 8 выстрелов/сек.
+    */
+    player.fireCooldown = .12;
+
+    shootSound();
+
+    const ray = castRay(player.angle);
+
+    let bestEnemy = null;
+    let bestDist = Infinity;
+
+    /*
+       Не создаём массивы и не запускаем тяжёлые операции
+       внутри вложенных циклов.
+    */
+
+    for(let i=0;i<enemies.length;i++){
+
+        const e = enemies[i];
+
+        if(e.hp <= 0) continue;
+
+        const dx = e.x-player.x;
+        const dy = e.y-player.y;
+
+        const dist = Math.hypot(dx,dy);
+
+        if(dist > ray.distance + .3) continue;
+
+        const enemyAngle =
+            Math.atan2(dy,dx);
+
+        const diff = Math.abs(
+            normalizeAngle(enemyAngle-player.angle)
+        );
+
+        /*
+           Угол зависит от расстояния.
+           Поэтому врага можно нормально поймать
+           прицелом.
+        */
+        const hitAngle =
+            Math.min(.15,.35/dist);
+
+        if(diff <= hitAngle){
+
+            if(!hasLineOfSight(
+                player.x,
+                player.y,
+                e.x,
+                e.y
+            )){
+                continue;
+            }
+
+            if(dist < bestDist){
+
+                bestDist = dist;
+                bestEnemy = e;
+            }
+        }
+    }
+
+    if(bestEnemy){
+
+        const damage = bestEnemy.boss ? 25 : 50;
+
+        bestEnemy.hp -= damage;
+        bestEnemy.hitFlash = .08;
+
+        score += bestEnemy.boss ? 20 : 10;
+        combo++;
+
+        hitSound();
+
+        if(bestEnemy.hp <= 0){
+
+            score += bestEnemy.boss ? 1000 : 100;
+
+            combo += bestEnemy.boss ? 10 : 2;
+        }
+    }
+
+    /*
+       Target Range отдельно от врагов.
+    */
+
+    if(currentMode === "targets"){
+
+        for(let i=0;i<targets.length;i++){
+
+            const t = targets[i];
+
+            if(!t.alive) continue;
+
+            const dx = t.x-player.x;
+            const dy = t.y-player.y;
+
+            const dist = Math.hypot(dx,dy);
+
+            if(dist > ray.distance+.2) continue;
+
+            const a = Math.atan2(dy,dx);
+
+            const diff = Math.abs(
+                normalizeAngle(a-player.angle)
+            );
+
+            if(diff < .13 &&
+               hasLineOfSight(
+                   player.x,
+                   player.y,
+                   t.x,
+                   t.y
+               )){
+
+                t.alive=false;
+                t.respawn=2;
+
+                score += 50;
+                combo++;
+
+                hitSound();
+
+                break;
+            }
+        }
+    }
+}
+
+
+/* =========================================================
+   INPUT
+========================================================= */
+
+window.addEventListener("keydown",e=>{
+
+    keys[e.code]=true;
+
+    if(e.code==="KeyR"){
+        reload();
+    }
+
+    if(e.code==="Escape" && gameState==="playing"){
+        backToMenu();
+    }
+});
+
+window.addEventListener("keyup",e=>{
+    keys[e.code]=false;
+});
+
+canvas.addEventListener("mousedown",e=>{
+
+    if(e.button !== 0) return;
+
+    initAudio();
+
+    mouseDown=true;
+
+    if(gameState==="playing"){
+        canvas.requestPointerLock?.();
+    }
+});
+
+window.addEventListener("mouseup",e=>{
+
+    if(e.button===0){
+        mouseDown=false;
+    }
+});
+
+document.addEventListener("pointerlockchange",()=>{
+
+    pointerLocked =
+        document.pointerLockElement === canvas;
+});
+
+document.addEventListener("mousemove",e=>{
+
+    if(gameState !== "playing") return;
+    if(!pointerLocked) return;
+
+    player.angle += e.movementX * .0025;
+});
+
+
+/* =========================================================
+   PLAYER UPDATE
+========================================================= */
+
+function updatePlayer(dt){
+
+    /*
+       Ввод направления.
+    */
+
+    let forward=0;
+    let strafe=0;
+
+    if(keys["KeyW"] || keys["ArrowUp"])
+        forward += 1;
+
+    if(keys["KeyS"] || keys["ArrowDown"])
+        forward -= 1;
+
+    if(keys["KeyA"] || keys["ArrowLeft"])
+        strafe -= 1;
+
+    if(keys["KeyD"] || keys["ArrowRight"])
+        strafe += 1;
+
+    const moving =
+        forward !== 0 ||
+        strafe !== 0;
+
+    let sprint =
+        keys["ShiftLeft"] ||
+        keys["ShiftRight"];
+
+    if(player.stamina <= 0){
+        sprint=false;
+    }
+
+    if(sprint && moving){
+
+        player.stamina -= 35*dt;
+
+        if(player.stamina < 0)
+            player.stamina=0;
+
+    }else{
+
+        player.stamina += 20*dt;
+
+        if(player.stamina > 100)
+            player.stamina=100;
+    }
+
+    let speed = sprint ? 4.8 : 2.8;
+
+    /*
+       Нормализация диагонального движения.
+    */
+
+    const len=Math.hypot(forward,strafe);
+
+    if(len>0){
+
+        forward/=len;
+        strafe/=len;
+
+        const cos=Math.cos(player.angle);
+        const sin=Math.sin(player.angle);
+
+        const dx =
+            (cos*forward - sin*strafe)
+            *speed*dt;
+
+        const dy =
+            (sin*forward + cos*strafe)
+            *speed*dt;
+
+        moveEntity(
+            player,
+            dx,
+            dy,
+            player.radius
+        );
+    }
+
+    /*
+       Перезарядка.
+    */
+
+    if(player.reloadTimer > 0){
+
+        player.reloadTimer -= dt;
+
+        if(player.reloadTimer <= 0){
+            finishReload();
+        }
+    }
+
+    /*
+       Cooldown стрельбы.
+    */
+
+    if(player.fireCooldown > 0){
+
+        player.fireCooldown -= dt;
+
+        if(player.fireCooldown < 0)
+            player.fireCooldown=0;
+    }
+
+    /*
+       Зажатая ЛКМ.
+       Важно: shoot() вызывается максимум
+       один раз за cooldown.
+    */
+
+    if(mouseDown){
+
+        shoot();
+    }
+
+    if(player.damageFlash > 0){
+
+        player.damageFlash -= dt;
+
+        if(player.damageFlash<0)
+            player.damageFlash=0;
+    }
+}
+
+
+/* =========================================================
+   ENEMY UPDATE
+========================================================= */
+
+function updateEnemies(dt){
+
+    for(let i=0;i<enemies.length;i++){
+
+        const e=enemies[i];
+
+        if(e.hp<=0) continue;
+
+        if(e.hitFlash>0){
+
+            e.hitFlash-=dt;
+
+            if(e.hitFlash<0)
+                e.hitFlash=0;
+        }
+
+        const dx=player.x-e.x;
+        const dy=player.y-e.y;
+
+        const dist=Math.hypot(dx,dy);
+
+        e.angle=Math.atan2(dy,dx);
+
+        /*
+           Движение к игроку только если есть LOS
+           или враг достаточно близко.
+        */
+
+        if(dist > 1.2){
+
+            const sees =
+                hasLineOfSight(
+                    e.x,
+                    e.y,
+                    player.x,
+                    player.y
+                );
+
+            if(sees){
+
+                const speed =
+                    e.speed *
+                    (e.boss ? 1 : 1);
+
+                const mx =
+                    Math.cos(e.angle)
+                    *speed*dt;
+
+                const my =
+                    Math.sin(e.angle)
+                    *speed*dt;
+
+                moveEntity(
+                    e,
+                    mx,
+                    my,
+                    e.radius
+                );
+            }
+
+        }else{
+
+            /*
+               Атака на близкой дистанции.
+            */
+
+            e.fireCooldown -= dt;
+
+            if(e.fireCooldown<=0){
+
+                e.fireCooldown =
+                    e.boss ? .35 : .8;
+
+                player.hp -=
+                    e.boss ? 8 : 4;
+
+                player.damageFlash=.12;
+
+                combo=0;
+
+                if(player.hp<=0){
+
+                    player.hp=0;
+
+                    endGame(
+                        "GAME OVER",
+                        "Ты проиграл."
+                    );
+
+                    return;
+                }
+            }
+        }
+    }
+
+    /*
+       Удаляем мёртвых без опасных операций
+       во время прохода выше.
+    */
+
+    for(let i=enemies.length-1;i>=0;i--){
+
+        if(enemies[i].hp<=0){
+
+            enemies.splice(i,1);
+        }
+    }
+}
+
+
+/* =========================================================
+   TARGETS UPDATE
+========================================================= */
+
+function updateTargets(dt){
+
+    for(let i=0;i<targets.length;i++){
+
+        const t=targets[i];
+
+        if(!t.alive){
+
+            t.respawn-=dt;
+
+            if(t.respawn<=0){
+
+                const p=randomFreePosition();
+
+                t.x=p.x;
+                t.y=p.y;
+
+                t.alive=true;
+            }
+        }
+    }
+}
+
+
+/* =========================================================
+   MODES
+========================================================= */
+
+function updateMode(dt){
+
+    if(currentMode==="campaign"){
+
+        if(enemies.length===0){
+
+            endGame(
+                "MISSION COMPLETE",
+                "Все противники уничтожены!"
+            );
+
+            return;
+        }
+    }
+
+    else if(currentMode==="survival"){
+
+        if(enemies.length===0){
+
+            for(let i=0;i<5;i++){
+
+                const p=randomFreePosition();
+
+                spawnEnemy(p.x,p.y);
+            }
+
+            score+=200;
+        }
+    }
+
+    else if(currentMode==="wave"){
+
+        if(enemies.length===0){
+
+            wave++;
+
+            score+=wave*100;
+
+            if(wave>30){
+
+                endGame(
+                    "WAVE COMPLETE",
+                    "Ты пережил 30 волн!"
+                );
+
+                return;
+            }
+
+            spawnWave();
+        }
+    }
+
+    else if(currentMode==="deathmatch"){
+
+        if(enemies.length===0){
+
+            endGame(
+                "MATCH COMPLETE",
+                "Все противники уничтожены!"
+            );
+
+            return;
+        }
+    }
+
+    else if(currentMode==="time"){
+
+        modeTimer-=dt;
+
+        if(modeTimer<=0){
+
+            endGame(
+                "TIME UP",
+                "Время закончилось!"
+            );
+
+            return;
+        }
+
+        if(enemies.length<5){
+
+            const p=randomFreePosition();
+
+            spawnEnemy(p.x,p.y);
+
+            score+=50;
+        }
+    }
+
+    else if(currentMode==="targets"){
+
+        let alive=0;
+
+        for(let i=0;i<targets.length;i++){
+
+            if(targets[i].alive)
+                alive++;
+        }
+
+        if(alive===0){
+
+            endGame(
+                "RANGE COMPLETE",
+                "Все мишени уничтожены!"
+            );
+
+            return;
+        }
+    }
+
+    else if(currentMode==="boss"){
+
+        if(enemies.length===0){
+
+            endGame(
+                "BOSS DEFEATED",
+                "Босс уничтожен!"
+            );
+
+            return;
+        }
+    }
+
+    else if(currentMode==="endless"){
+
+        if(enemies.length<4){
+
+            const p=randomFreePosition();
+
+            spawnEnemy(
+                p.x,
+                p.y,
+                Math.random()<.04
+            );
+        }
+    }
+}
+
+
+/* =========================================================
+   MAIN UPDATE
+========================================================= */
+
+function update(dt){
+
+    if(gameState!=="playing")
+        return;
+
+    /*
+       Защита от огромного dt после сворачивания
+       вкладки или тормозов браузера.
+    */
+
+    dt=Math.min(dt,.05);
+
+    gameTime+=dt;
+
+    updatePlayer(dt);
+
+    if(gameState!=="playing")
+        return;
+
+    updateEnemies(dt);
+
+    if(gameState!=="playing")
+        return;
+
+    updateTargets(dt);
+
+    updateMode(dt);
+
+    updateHUD();
+}
+
+
+/* =========================================================
+   HUD
+========================================================= */
+
+function updateHUD(){
+
+    document.getElementById("hpFill").style.width =
+        player.hp+"%";
+
+    document.getElementById("staminaFill").style.width =
+        player.stamina+"%";
+
+    document.getElementById("score").textContent =
+        Math.floor(score);
+
+    document.getElementById("combo").textContent =
+        combo;
+
+    document.getElementById("ammo").textContent =
+        player.reloadTimer>0
+            ? "RELOAD"
+            : player.ammo;
+
+    document.getElementById("reserve").textContent =
+        player.reserve;
+
+    let modeText =
+        modeNames[currentMode] || currentMode;
+
+    if(currentMode==="wave"){
+        modeText += " | WAVE "+wave;
+    }
+
+    if(currentMode==="time"){
+        modeText +=
+            " | "+Math.max(0,Math.ceil(modeTimer))+"s";
+    }
+
+    document.getElementById("modeText").textContent =
+        modeText;
+}
+
+
+/* =========================================================
+   RENDER WORLD
+========================================================= */
+
+function render(){
+
+    /*
+       Небо
+    */
+
+    ctx.fillStyle="#101b2a";
+    ctx.fillRect(0,0,W,H/2);
+
+    /*
+       Пол
+    */
+
+    ctx.fillStyle="#191919";
+    ctx.fillRect(0,H/2,W,H/2);
+
+    const columns =
+        Math.min(W,720);
+
+    const step =
+        W/columns;
+
+    /*
+       Z-buffer.
+       Один луч на колонку.
+    */
+
+    const zBuffer = new Float32Array(columns);
+
+    for(let x=0;x<columns;x++){
+
+        const camera =
+            x/(columns-1)-.5;
+
+        const angle =
+            player.angle +
+            camera*FOV;
+
+        const ray =
+            castRay(angle);
+
+        /*
+           Fisheye correction.
+        */
+
+        const corrected =
+            ray.distance *
+            Math.cos(angle-player.angle);
+
+        zBuffer[x]=corrected;
+
+        const wallHeight =
+            Math.min(
+                H*3,
+                H/(corrected+.001)
+            );
+
+        const top =
+            H/2-wallHeight/2;
+
+        /*
+           Освещение от расстояния.
+        */
+
+        const shade =
+            Math.max(
+                25,
+                180-corrected*14
+            );
+
+        ctx.fillStyle =
+            `rgb(${shade*.65},${shade*.8},${shade})`;
+
+        ctx.fillRect(
+            x*step,
+            top,
+            step+1,
+            wallHeight
+        );
+    }
+
+    renderObjects(zBuffer,columns,step);
+
+    /*
+       Оружие
+    */
+
+    renderWeapon();
+
+    /*
+       Урон по экрану
+    */
+
+    if(player.damageFlash>0){
+
+        ctx.fillStyle =
+            `rgba(255,0,0,${player.damageFlash*2})`;
+
+        ctx.fillRect(0,0,W,H);
+    }
+}
+
+
+/* =========================================================
+   OBJECT RENDERING
+========================================================= */
+
+function renderObjects(zBuffer,columns,step){
+
+    const objects=[];
+
+    for(let i=0;i<enemies.length;i++){
+
+        const e=enemies[i];
+
+        if(e.hp<=0) continue;
+
+        const dx=e.x-player.x;
+        const dy=e.y-player.y;
+
+        const dist=Math.hypot(dx,dy);
+
+        let angle =
+            normalizeAngle(
+                Math.atan2(dy,dx)-player.angle
+            );
+
+        if(Math.abs(angle)>FOV*.7)
+            continue;
+
+        const corrected =
+            dist*Math.cos(angle);
+
+        if(corrected<=.1)
+            continue;
+
+        const screenX =
+            W/2 +
+            (angle/FOV)*W;
+
+        const size =
+            Math.min(
+                H*1.5,
+                H/(corrected)*.75
+            );
+
+        objects.push({
+            type:"enemy",
+            obj:e,
+            dist:corrected,
+            x:screenX,
+            size
+        });
+    }
+
+    for(let i=0;i<targets.length;i++){
+
+        const t=targets[i];
+
+        if(!t.alive) continue;
+
+        const dx=t.x-player.x;
+        const dy=t.y-player.y;
+
+        const dist=Math.hypot(dx,dy);
+
+        let angle =
+            normalizeAngle(
+                Math.atan2(dy,dx)-player.angle
+            );
+
+        if(Math.abs(angle)>FOV*.7)
+            continue;
+
+        const corrected =
+            dist*Math.cos(angle);
+
+        if(corrected<=.1)
+            continue;
+
+        objects.push({
+            type:"target",
+            obj:t,
+            dist:corrected,
+            x:
+                W/2+
+                (angle/FOV)*W,
+            size:
+                Math.min(
+                    H,
+                    H/corrected*.45
+                )
+        });
+    }
+
+    /*
+       Сначала дальние, потом ближние.
+    */
+
+    objects.sort((a,b)=>b.dist-a.dist);
+
+    for(let i=0;i<objects.length;i++){
+
+        const o=objects[i];
+
+        const screenColumn =
+            Math.floor(
+                (o.x/W)*columns
+            );
+
+        if(
+            screenColumn<0 ||
+            screenColumn>=columns
+        ) continue;
+
+        if(
+            o.dist >
+            zBuffer[screenColumn]+.25
+        ){
+            continue;
+        }
+
+        if(o.type==="enemy"){
+            drawEnemy(o);
+        }else{
+            drawTarget(o);
+        }
+    }
+}
+
+
+/* =========================================================
+   ENEMY DRAW
+========================================================= */
+
+function drawEnemy(o){
+
+    const e=o.obj;
+    const s=o.size;
+
+    const x=o.x;
+    const y=H/2;
+
+    const bodyW=s*.42;
+    const bodyH=s*.72;
+
+    /*
+       Тень
+    */
+
+    ctx.fillStyle="rgba(0,0,0,.45)";
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+        x,
+        y+s*.43,
+        bodyW*.8,
+        s*.08,
+        0,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+    /*
+       Робот
+    */
+
+    ctx.fillStyle=
+        e.hitFlash>0
+            ? "#ffffff"
+            : e.boss
+                ? "#aa45ff"
+                : "#d93d3d";
+
+    ctx.fillRect(
+        x-bodyW/2,
+        y-bodyH*.2,
+        bodyW,
+        bodyH*.55
+    );
+
+    ctx.fillRect(
+        x-bodyW*.38,
+        y-bodyH*.48,
+        bodyW*.76,
+        bodyH*.28
+    );
+
+    /*
+       Глаза
+    */
+
+    ctx.fillStyle="#61eaff";
+
+    ctx.fillRect(
+        x-bodyW*.23,
+        y-bodyH*.40,
+        bodyW*.14,
+        bodyH*.07
+    );
+
+    ctx.fillRect(
+        x+bodyW*.09,
+        y-bodyH*.40,
+        bodyW*.14,
+        bodyH*.07
+    );
+
+    /*
+       Босс больше
+    */
+
+    if(e.boss){
+
+        ctx.strokeStyle="#ffcc00";
+        ctx.lineWidth=Math.max(2,s*.025);
+
+        ctx.strokeRect(
+            x-bodyW*.65,
+            y-bodyH*.65,
+            bodyW*1.3,
+            bodyH*1.15
+        );
+    }
+
+    /*
+       HP bar
+    */
+
+    const barW=s*.65;
+    const barH=Math.max(4,s*.025);
+
+    ctx.fillStyle="#222";
+
+    ctx.fillRect(
+        x-barW/2,
+        y-bodyH*.7,
+        barW,
+        barH
+    );
+
+    ctx.fillStyle="#45ed65";
+
+    ctx.fillRect(
+        x-barW/2,
+        y-bodyH*.7,
+        barW*
+            Math.max(
+                0,
+                e.hp/e.maxHp
+            ),
+        barH
+    );
+}
+
+
+/* =========================================================
+   TARGET DRAW
+========================================================= */
+
+function drawTarget(o){
+
+    const s=o.size;
+    const x=o.x;
+    const y=H/2;
+
+    ctx.fillStyle="#ffcc33";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        y,
+        s*.35,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+    ctx.fillStyle="#111";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        y,
+        s*.15,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+}
+
+
+/* =========================================================
+   WEAPON
+========================================================= */
+
+function renderWeapon(){
+
+    const gunW=W*.18;
+    const gunH=H*.32;
+
+    const x=W/2-gunW/2;
+    const y=H-gunH*.8;
+
+    ctx.fillStyle="#17191c";
+
+    ctx.fillRect(
+        x,
+        y,
+        gunW,
+        gunH
+    );
+
+    ctx.fillStyle="#33383e";
+
+    ctx.fillRect(
+        x+gunW*.28,
+        y-gunH*.22,
+        gunW*.44,
+        gunH*.3
+    );
+
+    ctx.fillStyle="#050505";
+
+    ctx.fillRect(
+        x+gunW*.43,
+        y-gunH*.38,
+        gunW*.14,
+        gunH*.45
+    );
+
+    /*
+       Мушка
+    */
+
+    ctx.fillStyle="#777";
+
+    ctx.fillRect(
+        W/2-2,
+        y-gunH*.42,
+        4,
+        12
+    );
+}
+
+
+/* =========================================================
+   GAME OVER
+========================================================= */
+
+function endGame(title,text){
+
+    if(gameState!=="playing")
+        return;
+
+    gameState="ended";
+
+    mouseDown=false;
+
+    if(document.pointerLockElement){
+        document.exitPointerLock?.();
+    }
+
+    stopMusic();
+
+    document.getElementById("messageTitle").textContent =
+        title;
+
+    document.getElementById("messageText").textContent =
+        text+
+        " Счёт: "+
+        Math.floor(score);
+
+    document.getElementById("message").style.display =
+        "block";
+}
+
+function backToMenu(){
+
+    gameState="menu";
+
+    mouseDown=false;
+
+    if(document.pointerLockElement){
+        document.exitPointerLock?.();
+    }
+
+    stopMusic();
+
+    document.getElementById("menu").style.display =
+        "flex";
+
+    document.getElementById("hud").style.display =
+        "none";
+
+    document.getElementById("crosshair").style.display =
+        "none";
+
+    document.getElementById("message").style.display =
+        "none";
+}
+
+
+/* =========================================================
+   MAIN LOOP
+========================================================= */
+
+function loop(now){
+
+    /*
+       Никогда не даём dt стать огромным.
+    */
+
+    let dt=(now-lastTime)/1000;
+
+    lastTime=now;
+
+    if(!Number.isFinite(dt)){
+        dt=.016;
+    }
+
+    dt=Math.min(dt,.05);
+
+    update(dt);
+
+    if(gameState==="playing"){
+        render();
+    }else{
+        /*
+           Даже меню продолжаем рисовать фон,
+           но без игровой логики.
+        */
+        if(gameState==="menu"){
+            renderMenuBackground();
+        }
+    }
+
+    requestAnimationFrame(loop);
+}
+
+
+/* =========================================================
+   MENU BACKGROUND
+========================================================= */
+
+function renderMenuBackground(){
+
+    ctx.fillStyle="#05070a";
+    ctx.fillRect(0,0,W,H);
+
+    const g=ctx.createRadialGradient(
+        W/2,H/2,50,
+        W/2,H/2,Math.max(W,H)
+    );
+
+    g.addColorStop(0,"#152334");
+    g.addColorStop(1,"#020304");
+
+    ctx.fillStyle=g;
+    ctx.fillRect(0,0,W,H);
+}
+
+
+/* =========================================================
+   START
+========================================================= */
+
+renderMenuBackground();
+requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
